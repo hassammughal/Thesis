@@ -1,8 +1,3 @@
-/******************************************************************************
-                              Online C++ Compiler.
-               Code, Compile, Run and Debug C++ program online.
-Write your code in this editor and press "Run" button to compile and execute it.
-*******************************************************************************/
 #include <iostream>
 #include <cmath>
 #include <ctime>
@@ -87,7 +82,7 @@ int main()
     double availBandWidthW = MbtoMBW;
     double availBandWidthWD = MbtoMBWD;
     double finalData, maxDataW, maxDataWD, totalData, remainingData, dataTransferTimeW, dataTransferTimeWD, remainingDTTW, remainingDTTWD, remainingDTT;
-//Resource Allocation Algorithm
+    //Resource Allocation Algorithm
     dataTransferTimeW = std::round(dataSize / availBandWidthW);
     dataTransferTimeWD = std::round(dataSize / availBandWidthWD);
     maxDataW = availBandWidthW * deadline;
