@@ -1,0 +1,392 @@
+#include "ns3/network-module.h"
+#include "ns3/core-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/dce-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
+#include "ns3/constant-position-mobility-model.h"
+#include "ns3/wifi-module.h"
+#include "ccnx/misc-tools.h"
+#include <string>
+#include <cmath>
+#include <iostream>
+#include <ctime>
+#include <queue>
+#include <utility>
+#include <functional>
+#include <thread>
+#include <chrono>
+using namespace ns3;
+NS_LOG_COMPONENT_DEFINE ("DceIperf");
+// ===========================================================================
+//
+//         node 0                 node 1
+//   +----------------+    +----------------+
+//   |    10.1.1.1    |    |    10.1.1.2    |
+//   +----------------+    +----------------+
+//   |    10.1.2.1    |    |    10.1.2.2    |
+//   +----------------+    +----------------+
+//   |  YansWifiPHY   |    |  YansWifiPHY   |
+//   +----------------+    +----------------+
+//                                
+//           +---------------------+
+//                11 Mbps, 2 ms
+//
+//                            
+//           +---------------------+
+//            54 Mbps, 2 ms
+// 2 nodes : iperf client en iperf server ....
+//
+// Note : Tested with iperf 2.0.5, you need to modify iperf source in order to
+//        allow DCE to have a chance to end an endless loop in iperf as follow:
+//        in source named Thread.c at line 412 in method named thread_rest
+//        you must add a sleep (1); to break the infinite loop....
+// ===========================================================================
+class UserTask
+{
+public:
+    UserTask() {
+    }
+    UserTask(std::uint16_t deadline, std::uint16_t task_size, std::uint16_t task_id): m_deadline(deadline), m_task_size(task_size), m_task_id(task_id){
+    }
+    void print_id(){
+        std::cout<< "Running task: Task ID: " << m_task_id << ", Task Size: " << m_task_size <<", Task Deadline: " << m_deadline << std::endl;
+    }
+    std::uint16_t get_deadline(){
+        return m_deadline;
+    }
+    std::uint16_t get_task_size(){
+        return m_task_size;
+    }
+private:
+    std::uint16_t m_deadline;
+    std::uint16_t m_task_size;
+    std::uint16_t m_task_id;
+};
+template<typename T> void print_queue(T& q){
+    while(!q.empty()) {
+        auto task = q.top();
+        task.print_id();
+        q.pop();
+    }
+}
+template <typename T>
+void populate_queue(T &user_task_queue){
+    srand((int) time(NULL));
+    int i = 0;
+    while (i++ < 10){
+        int ds = (rand() % 2048 + 1);
+        std::cout<<"randomly generated data size: " << ds << ", taskID: " << i << std::endl;
+        int dl = (rand() % 360 + 1);
+        std::cout<<"randomly generated data transfer deadline: " << dl << ", taskID: " << i << std::endl;
+        user_task_queue.push(UserTask(dl,ds,i));
+    std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2000 + 1));
+    }
+}
+// lambda is evaluated at compile time using constexpr
+constexpr auto cmp_deadline = [](UserTask left, UserTask right) {
+    return (left.get_deadline()) > (right.get_deadline()); };
+constexpr auto cmp_size = [](UserTask left, UserTask right) {
+    return (left.get_task_size()) < (right.get_task_size()); };
+// so we can provide values to the aliases
+// deadline_priority_queue type arranges the values according to the deadline
+using deadline_priority_queue = std::priority_queue<UserTask, std::vector<UserTask>, decltype(cmp_deadline)>;
+// size_priority_queue arranges the values according to the size
+using size_priority_queue = std::priority_queue<UserTask, std::vector<UserTask>, decltype(cmp_size)>;
+void appIfOne(NodeContainer nodes, std::string sBandWidthW, std::string dataTransferTime, uint16_t dTT); 
+void appIfTwo(NodeContainer nodes, std::string sBandWidthWD, std::string dataTransferTime, uint16_t dTT); 
+int main (int argc, char *argv[])
+{
+  deadline_priority_queue ordered_queue(cmp_deadline);
+  populate_queue<deadline_priority_queue>(ordered_queue);
+    //print_queue(ordered_queue);
+    //std::cout << "======================================" << std::endl;
+  //size_priority_queue ordered_queue_2(cmp_size);
+  //  populate_queue<size_priority_queue>(ordered_queue_2);
+    //print_queue(ordered_queue_2);
+    while(!ordered_queue.empty()){
+        auto task = ordered_queue.top();
+    
+    std::string stack = "ns3";
+    std::string sBandWidthW = "11m";
+    std::string sBandWidthWD = "54m";
+    std::string sRemainingDTTW, sRemainingDTTWD, sDataTransferTimeW, sDataTransferTimeWD;
+    uint16_t mobiles = 2;
+    uint16_t deadline = task.get_deadline();
+    std::cout << "deadline: " << deadline << std::endl;
+    
+    std::string sDeadline = std::to_string(deadline);
+    double dataSize = task.get_task_size();
+    std::cout << "dataSize: " << dataSize << std::endl;
+  double bandWidthW = 11.0;
+  double MbtoMBW = bandWidthW/8;
+  double bandWidthWD = 54.0;
+  double MbtoMBWD = bandWidthWD/8;
+  double availBandWidthW = MbtoMBW;
+  double availBandWidthWD = MbtoMBWD;
+  double finalData = 0;
+  double maxDataW = 0;
+  double maxDataWD = 0;
+  double totalData = 0;
+  double remainingData = 0;
+  double dataTransferTimeW = 0;
+  double dataTransferTimeWD = 0;
+  double remainingDTTW = 0;
+  double remainingDTTWD = 0;
+  double remainingDTT = 0;
+  CommandLine cmd;
+  cmd.AddValue ("stack", "Name of IP stack: ns3/linux/freebsd.", stack);
+  cmd.AddValue ("bw", "BandWidth. Default 1m.", sBandWidthW);
+  cmd.Parse (argc, argv);
+  
+// Network Architecture
+//Creating nodes
+  NodeContainer nodes;
+  nodes.Create (mobiles);
+//Setting up Wifi Phy and MAC
+  YansWifiPhyHelper phy;
+  WifiHelper wifi, wifiWD;
+  phy = YansWifiPhyHelper::Default ();
+  YansWifiChannelHelper phyChannel = YansWifiChannelHelper::Default ();
+  WifiMacHelper mac;
+  phy.SetChannel (phyChannel.Create ());
+  mac.SetType ("ns3::AdhocWifiMac");
+//Setting Wifi Standard
+  wifi.SetStandard (WIFI_PHY_STANDARD_80211b);
+  wifiWD.SetStandard (WIFI_PHY_STANDARD_80211g); 
+//Creating Netdevices and installing Wifi
+  NetDeviceContainer deviceW, deviceWD;
+  deviceW = wifi.Install (phy, mac, nodes);
+  deviceWD = wifiWD.Install (phy, mac, nodes);
+  
+// architecture finish here
+  DceManagerHelper dceManager;
+  dceManager.SetTaskManagerAttribute ("FiberManagerType", StringValue ("UcontextFiberManager"));
+  if (stack == "ns3")
+    {
+      InternetStackHelper stack;
+      stack.Install (nodes);
+      dceManager.Install (nodes);
+    }
+  else if (stack == "linux")
+    {
+#ifdef KERNEL_STACK
+      dceManager.SetNetworkStack ("ns3::LinuxSocketFdFactory", "Library", StringValue ("liblinux.so"));
+      dceManager.Install (nodes);
+      LinuxStackHelper stack;
+      stack.Install (nodes);
+#else
+      NS_LOG_ERROR ("Linux kernel stack for DCE is not available. build with dce-linux module.");
+      // silently exit
+      return 0;
+#endif
+    }
+  else if (stack == "freebsd")
+    {
+#ifdef KERNEL_STACK
+      dceManager.SetNetworkStack ("ns3::FreeBSDSocketFdFactory", "Library", StringValue ("libfreebsd.so"));
+      dceManager.Install (nodes);
+      FreeBSDStackHelper stack;
+      stack.Install (nodes);
+#else
+      NS_LOG_ERROR ("FreeBSD kernel stack for DCE is not available. build with dce-freebsd module.");
+      // silently exit
+      return 0;
+#endif
+    }
+//Installation of IPv4 Address on all interfaces
+  Ipv4AddressHelper addressW, addressWD;
+  addressW.SetBase ("10.1.1.0", "255.255.255.0");
+  addressWD.SetBase ("10.1.2.0", "255.255.255.0");
+//Assignment of addresses on all interfaces
+  Ipv4InterfaceContainer interfaceW = addressW.Assign (deviceW);
+  addressW.NewNetwork ();
+  Ipv4InterfaceContainer interfaceWD = addressWD.Assign (deviceWD);
+  addressWD.NewNetwork ();
+//Resource Allocation Algorithm
+   dataTransferTimeW = std::round(dataSize / availBandWidthW);
+    std::cout << "dataTransferTimeW: " << dataTransferTimeW << std::endl;
+    dataTransferTimeWD = std::round(dataSize / availBandWidthWD);
+    std::cout << "dataTransferTimeWD: " << dataTransferTimeWD << std::endl;
+    maxDataW = availBandWidthW * deadline;
+    std::cout << "maxDataW: " << maxDataW << std::endl;
+    maxDataWD = availBandWidthWD * deadline;
+    std::cout << "maxDataWD: " << maxDataWD << std::endl;
+    
+    if(maxDataW > dataSize){
+        maxDataW = dataSize;
+    }
+    if(maxDataWD > dataSize){
+        maxDataWD = dataSize;
+    }
+    
+    if(maxDataWD > maxDataW){
+        remainingData = dataSize - maxDataWD;
+        remainingDTTW = remainingData / availBandWidthW;
+        finalData = maxDataWD;
+        totalData = remainingData + maxDataWD;
+    } else {
+        remainingData = dataSize - maxDataW;
+        remainingDTTWD = remainingData / availBandWidthWD;
+        finalData = maxDataW;
+        totalData = remainingData + maxDataW;
+    }
+    
+    remainingDTT = remainingDTTW + remainingDTTWD;
+    
+    std::cout << "remainingData: " << remainingData << std::endl;
+    std::cout << "remainingDTTW: " << remainingDTTW << std::endl;
+    std::cout << "remainingDTTWD: " << remainingDTTWD << std::endl;
+    std::cout << "finalData: " << finalData << std::endl;
+    std::cout << "totalData: " << totalData << std::endl;
+    std::cout << "remainingDTT: " << remainingDTT << std::endl;
+    if(totalData < dataSize || remainingDTT > deadline){
+        std::cout << "This data transfer is not possible" << std::endl;
+        ordered_queue.pop();
+    } else {
+        if(maxDataWD > maxDataW) {
+            if(dataTransferTimeWD < deadline) {
+                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi Direct for the time: " << dataTransferTimeWD << "s" << std::endl;
+                sDataTransferTimeWD = std::to_string(dataTransferTimeWD);
+                appIfTwo(nodes, sBandWidthWD, sDataTransferTimeWD, dataTransferTimeWD);
+        ordered_queue.pop();
+            } else {
+                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi Direct for the time: " << deadline << "s" << std::endl;
+                //sDeadline = std::to_string(deadline);
+                appIfTwo(nodes, sBandWidthWD, sDeadline, deadline);
+        ordered_queue.pop();
+            }
+            if(remainingData == 0){
+                std::cout << "No need to use another WCT" << std::endl;
+            } else {
+                std::cout << "Sending the remaining data " << remainingData << " to node using Wi-Fi for the time: " << remainingDTTW << "s" << std::endl;
+                sRemainingDTTW = std::to_string(remainingDTTW);
+                appIfOne(nodes, sBandWidthW, sRemainingDTTW, remainingDTTW);
+        ordered_queue.pop();
+            }
+            
+        } else {
+            if(dataTransferTimeW < deadline) {
+                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi for the time: " << dataTransferTimeW << "s" << std::endl;
+                sDataTransferTimeW = std::to_string(dataTransferTimeW);
+                appIfOne(nodes, sBandWidthW, sDataTransferTimeW, dataTransferTimeW);
+        ordered_queue.pop();
+            } else {
+                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi for the time: " << deadline << "s" << std::endl;
+                //sDeadline = std::to_string(deadline);
+                appIfOne(nodes, sBandWidthW, sDeadline, deadline);
+        ordered_queue.pop();
+            }
+            if(remainingData == 0){
+                std::cout << "No need to use another WCT" << std::endl;
+            } else {
+                std::cout << "Sending the remaining data " << remainingData << " to node using Wi-Fi Direct" << remainingDTTWD << "s" << std::endl;
+                sRemainingDTTW = std::to_string(remainingDTTWD);
+                appIfTwo(nodes, sBandWidthW, sRemainingDTTW, remainingDTTWD);
+        ordered_queue.pop();
+            }
+        }
+    }
+  phy.EnablePcapAll ("iperf-" + stack, false);
+//Setting Node Position
+  setPos (nodes.Get (0), 1, 10, 0);
+  setPos (nodes.Get (1), 50,10, 0);
+//Starting Simulation
+  Simulator::Stop (Seconds (deadline+4));
+  Simulator::Run ();
+  Simulator::Destroy ();
+}
+  return 0;
+}
+//Installing Application on 1st Interface
+void appIfOne(NodeContainer nodes, std::string sBandWidthW, std::string dataTransferTime, uint16_t dTT){ 
+  bool useUdp = 1;
+//Iperf Applicaiton Setup
+  DceApplicationHelper dceW;
+  ApplicationContainer appsW; 
+  std::ostringstream serverIpW;
+  dceW.SetStackSize (1 << 20);
+// Launch iperf client on node 0
+  dceW.SetBinary ("iperf");
+  dceW.ResetArguments ();
+  dceW.ResetEnvironment ();
+  dceW.AddArgument ("-c");
+  dceW.AddArgument ("10.1.1.2");
+  dceW.AddArgument ("-i");
+  dceW.AddArgument ("1");
+  dceW.AddArgument ("--time");
+  dceW.AddArgument (dataTransferTime);
+  
+  if (useUdp)
+    {
+      dceW.AddArgument ("-u");
+      dceW.AddArgument ("-b");
+      dceW.AddArgument (sBandWidthW);
+    }
+  appsW = dceW.Install (nodes.Get (0));
+  appsW.Start (Seconds (0.7));
+  appsW.Stop (Seconds (dTT+4));
+// Launch iperf server on node 1
+  dceW.SetBinary ("iperf");
+  dceW.ResetArguments ();
+  dceW.ResetEnvironment ();
+  dceW.AddArgument ("-s");
+  dceW.AddArgument ("-P");
+  dceW.AddArgument ("-B");
+  dceW.AddArgument ("10.1.1.1");
+  dceW.AddArgument ("1");
+ 
+  if (useUdp)
+    {
+      dceW.AddArgument ("-u");
+    }
+  appsW = dceW.Install (nodes.Get (1));
+  appsW.Start (Seconds (0.6));
+}
+//Installing Application on 2nd Interface
+void appIfTwo(NodeContainer nodes, std::string sBandWidthWD, std::string dataTransferTime, uint16_t dTT){ 
+  bool useUdp = 1;
+//Iperf Applicaiton Setup
+  DceApplicationHelper dceWD;
+  ApplicationContainer appsWD;
+  std::ostringstream serverIpWD;
+  dceWD.SetStackSize (1 << 20);
+//Launch iperf client on node 0
+  dceWD.SetBinary ("iperf");
+  dceWD.ResetArguments ();
+  dceWD.ResetEnvironment ();
+  dceWD.AddArgument ("-c");
+  dceWD.AddArgument ("10.1.2.2");
+  dceWD.AddArgument ("-p");
+  dceWD.AddArgument ("5002");
+  dceWD.AddArgument ("-i");
+  dceWD.AddArgument ("1");
+  dceWD.AddArgument ("--time");
+  dceWD.AddArgument (dataTransferTime);
+  if (useUdp)
+    {
+      dceWD.AddArgument ("-u");
+      dceWD.AddArgument ("-b");
+      dceWD.AddArgument (sBandWidthWD);
+    }
+  appsWD = dceWD.Install (nodes.Get (0));
+  appsWD.Start (Seconds (0.7));
+  appsWD.Stop (Seconds (dTT+4));
+//Launch iperf server on node 1
+  dceWD.SetBinary ("iperf");
+  dceWD.ResetArguments ();
+  dceWD.ResetEnvironment ();
+  dceWD.AddArgument ("-s");
+  dceWD.AddArgument ("-p");
+  dceWD.AddArgument ("5002");
+  dceWD.AddArgument ("-B");
+  dceWD.AddArgument ("10.1.2.1");
+  dceWD.AddArgument ("1");
+  if (useUdp)
+    {
+      dceWD.AddArgument ("-u");
+    }
+  appsWD = dceWD.Install (nodes.Get (1));
+  appsWD.Start (Seconds (0.6));
+}
