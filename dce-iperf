@@ -123,8 +123,8 @@ int main (int argc, char *argv[])
   double MbtoMBW = bandWidthW/8;
   double bandWidthWD = 54.0;
   double MbtoMBWD = bandWidthWD/8;
-  double availBandWidthW = MbtoMBW;
-  double availBandWidthWD = MbtoMBWD;
+  double dBandWidthW = MbtoMBW;
+  double dBandWidthWD = MbtoMBWD;
   double finalData = 0;
   double maxDataW = 0;
   double maxDataWD = 0;
@@ -205,13 +205,13 @@ int main (int argc, char *argv[])
   Ipv4InterfaceContainer interfaceWD = addressWD.Assign (deviceWD);
   addressWD.NewNetwork ();
 //Resource Allocation Algorithm
-   dataTransferTimeW = std::round(dataSize / availBandWidthW);
+   dataTransferTimeW = std::round(dataSize / dBandWidthW);
     std::cout << "dataTransferTimeW: " << dataTransferTimeW << std::endl;
-    dataTransferTimeWD = std::round(dataSize / availBandWidthWD);
+    dataTransferTimeWD = std::round(dataSize / dBandWidthWD);
     std::cout << "dataTransferTimeWD: " << dataTransferTimeWD << std::endl;
-    maxDataW = availBandWidthW * deadline;
+    maxDataW = dBandWidthW * deadline;
     std::cout << "maxDataW: " << maxDataW << std::endl;
-    maxDataWD = availBandWidthWD * deadline;
+    maxDataWD = dBandWidthWD * deadline;
     std::cout << "maxDataWD: " << maxDataWD << std::endl;
     
     if(maxDataW > dataSize){
@@ -223,12 +223,12 @@ int main (int argc, char *argv[])
     
     if(maxDataWD > maxDataW){
         remainingData = dataSize - maxDataWD;
-        remainingDTTW = remainingData / availBandWidthW;
+        remainingDTTW = remainingData / dBandWidthW;
         finalData = maxDataWD;
         totalData = remainingData + maxDataWD;
     } else {
         remainingData = dataSize - maxDataW;
-        remainingDTTWD = remainingData / availBandWidthWD;
+        remainingDTTWD = remainingData / dBandWidthWD;
         finalData = maxDataW;
         totalData = remainingData + maxDataW;
     }
