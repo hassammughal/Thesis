@@ -1,10 +1,12 @@
-#include <iostream>
+#include <string>
 #include <cmath>
+#include <iostream>
 #include <ctime>
 #include <queue>
-#include <string>
 #include <utility>
 #include <functional>
+#include <thread>
+#include <chrono>
 class UserTask
 {
 public:
@@ -42,7 +44,8 @@ void populate_queue(T &user_task_queue){
         std::cout<<"randomly generated data size: " << ds << ", taskID: " << i << std::endl;
         int dl = (rand() % 360 + 1);
         std::cout<<"randomly generated data transfer deadline: " << dl << ", taskID: " << i << std::endl;
-        user_task_queue.push(UserTask(ds,dl,i));
+        user_task_queue.push(UserTask(dl,ds,i));
+    std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 2000 + 1));
     }
 }
 // lambda is evaluated at compile time using constexpr
@@ -61,97 +64,124 @@ int main()
     populate_queue<deadline_priority_queue>(ordered_queue);
     //print_queue(ordered_queue);
     //std::cout << "======================================" << std::endl;
-    //size_priority_queue ordered_queue_2(cmp_size);
-    //populate_queue<size_priority_queue>(ordered_queue_2);
+  //size_priority_queue ordered_queue_2(cmp_size);
+  //  populate_queue<size_priority_queue>(ordered_queue_2);
     //print_queue(ordered_queue_2);
     while(!ordered_queue.empty()){
         auto task = ordered_queue.top();
     
-    std::string stack = "ns3";
-    std::string sBandWidthW = "11m";
-    std::string sBandWidthWD = "54m";
-    std::string sRemainingDTTW, sRemainingDTTWD, sDataTransferTimeW, sDataTransferTimeWD;
-    uint16_t mobiles = 2;
-    uint16_t deadline = task.get_deadline();
-    std::string sDeadline = std::to_string(deadline);
-    double dataSize = task.get_task_size();
-    double bandWidthW = 11.0;
-    double MbtoMBW = bandWidthW/8;
-    double bandWidthWD = 54.0;
-    double MbtoMBWD = bandWidthWD/8;
-    double availBandWidthW = MbtoMBW;
-    double availBandWidthWD = MbtoMBWD;
-    double finalData, maxDataW, maxDataWD, totalData, remainingData, dataTransferTimeW, dataTransferTimeWD, remainingDTTW, remainingDTTWD, remainingDTT;
+        std::string stack = "ns3";
+        std::string sBandWidthW = "11Mbps";
+        std::string sBandWidthWD = "54Mbps";
+        std::string sRemainingDTTW, sRemainingDTTWD, sDataTransferTimeW, sDataTransferTimeWD;
+        uint16_t mobiles = 2;
+        uint16_t deadline = task.get_deadline();
+        std::cout << "deadline: " << deadline << std::endl;
+    
+        std::string sDeadline = std::to_string(deadline);
+        double dataSize = task.get_task_size();
+        std::cout << "dataSize: " << dataSize << std::endl;
+        double bandWidthW = 11.0;
+        double MbtoMBW = bandWidthW/8;
+        double bandWidthWD = 54.0;
+        double MbtoMBWD = bandWidthWD/8;
+        double dBandWidthW = MbtoMBW;
+        double dBandWidthWD = MbtoMBWD;
+        double finalData = 0;
+        double maxDataW = 0;
+        double maxDataWD = 0;
+        double totalData = 0;
+        double remainingData = 0;
+        double dataTransferTimeW = 0;
+        double dataTransferTimeWD = 0;
+        double remainingDTTW = 0;
+        double remainingDTTWD = 0;
+        double remainingDTT = 0;
     //Resource Allocation Algorithm
-    dataTransferTimeW = std::round(dataSize / availBandWidthW);
-    dataTransferTimeWD = std::round(dataSize / availBandWidthWD);
-    maxDataW = availBandWidthW * deadline;
-    maxDataWD = availBandWidthWD * deadline;
-    if(maxDataW > dataSize){
-        maxDataW = dataSize;
-    }
-    if(maxDataWD > dataSize){
-        maxDataWD = dataSize;
-    }
-    if(maxDataWD > maxDataW){
-        remainingData = dataSize - maxDataWD;
-        remainingDTTW = remainingData / availBandWidthW;
-        finalData = maxDataWD;
-        totalData = remainingData + maxDataWD;
-    } else {
-        remainingData = dataSize - maxDataW;
-        remainingDTTWD = remainingData / availBandWidthWD;
-        finalData = maxDataW;
-        totalData = remainingData + maxDataW;
-    }
-    remainingDTT = remainingDTTW + remainingDTTWD;
-    if(totalData < dataSize || remainingDTT > deadline){
-        std::cout << "This data transfer is not possible" << std::endl;
-        ordered_queue.pop();
-    } else {
-        if(maxDataWD > maxDataW) {
-            if(dataTransferTimeWD < deadline) {
-                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi Direct for the time: " << dataTransferTimeWD << "s" << std::endl;
-                sDataTransferTimeWD = std::to_string(dataTransferTimeWD);
-                ordered_queue.pop();
-               // appIfTwo(nodes, sBandWidthWD, sDataTransferTimeWD, dataTransferTimeWD);
-            } else {
-                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi Direct for the time: " << deadline << "s" << std::endl;
-                sDeadline = std::to_string(deadline);
-                ordered_queue.pop();
-               // appIfTwo(nodes, sBandWidthWD, sDeadline, deadline);
-            }
+        dataTransferTimeW = std::round(dataSize / dBandWidthW);
+        std::cout << "dataTransferTimeW: " << dataTransferTimeW << std::endl;
+        dataTransferTimeWD = std::round(dataSize / dBandWidthWD);
+        std::cout << "dataTransferTimeWD: " << dataTransferTimeWD << std::endl;
+        maxDataW = dBandWidthW * deadline;
+        std::cout << "maxDataW: " << maxDataW << std::endl;
+        maxDataWD = dBandWidthWD * deadline;
+        std::cout << "maxDataWD: " << maxDataWD << std::endl;
+    
+        if(maxDataW > dataSize){
+            maxDataW = dataSize;
+        }
+        if(maxDataWD > dataSize){
+            maxDataWD = dataSize;
+        }
+        if(maxDataWD > maxDataW){
+            remainingData = dataSize - maxDataWD;
+            remainingDTTW = remainingData / dBandWidthW;
+            finalData = maxDataWD;
+            totalData = remainingData + maxDataWD;
+        } else {
+            remainingData = dataSize - maxDataW;
+            remainingDTTWD = remainingData / dBandWidthWD;
+            finalData = maxDataW;
+            totalData = remainingData + maxDataW;
+        }
+    
+        remainingDTT = remainingDTTW + remainingDTTWD;
+    
+        std::cout << "remainingData: " << remainingData << std::endl;
+        std::cout << "remainingDTTW: " << remainingDTTW << std::endl;
+        std::cout << "remainingDTTWD: " << remainingDTTWD << std::endl;
+        std::cout << "finalData: " << finalData << std::endl;
+        std::cout << "totalData: " << totalData << std::endl;
+        std::cout << "remainingDTT: " << remainingDTT << std::endl;
+    
+        if(totalData < dataSize || remainingDTT > deadline){
+            std::cout << "This data transfer is not possible" << std::endl;
+            ordered_queue.pop();
+        } else {
+            if(maxDataWD > maxDataW) {
+                if(dataTransferTimeWD < deadline) {
+                    std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi Direct for the time: " << dataTransferTimeWD << "s" << std::endl;
+                    sDataTransferTimeWD = std::to_string(dataTransferTimeWD);
+                    // appIfTwo(nodes, sBandWidthWD, sDataTransferTimeWD, dataTransferTimeWD);
+                    ordered_queue.pop();
+                } else {
+                    std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi Direct for the time: " << deadline << "s" << std::endl;
+                    //sDeadline = std::to_string(deadline);
+                    // appIfTwo(nodes, sBandWidthWD, sDeadline, deadline);
+                    ordered_queue.pop();
+                }
+    
             if(remainingData == 0){
                 std::cout << "No need to use another WCT" << std::endl;
             } else {
                 std::cout << "Sending the remaining data " << remainingData << " to node using Wi-Fi for the time: " << remainingDTTW << "s" << std::endl;
                 sRemainingDTTW = std::to_string(remainingDTTW);
+                //appIfOne(nodes, sBandWidthW, sRemainingDTTW, remainingDTTW);
                 ordered_queue.pop();
-              //  appIfOne(nodes, sBandWidthW, sRemainingDTTW, remainingDTTW);
             }
             
-        } else {
-            if(dataTransferTimeW < deadline) {
-                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi for the time: " << dataTransferTimeW << "s" << std::endl;
-                sDataTransferTimeW = std::to_string(dataTransferTimeW);
-                ordered_queue.pop();
-              //  appIfOne(nodes, sBandWidthW, sDataTransferTimeW, dataTransferTimeW);
             } else {
-                std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi for the time: " << deadline << "s" << std::endl;
-                sDeadline = std::to_string(deadline);
-                ordered_queue.pop();
-              //  appIfOne(nodes, sBandWidthW, sDeadline, deadline);
-            }
-            if(remainingData == 0){
-                std::cout << "No need to use another WCT" << std::endl;
-            } else {
-                std::cout << "Sending the remaining data " << remainingData << " to node using Wi-Fi Direct" << remainingDTTWD << "s" << std::endl;
-                sRemainingDTTW = std::to_string(remainingDTTWD);
-                ordered_queue.pop();
-             //   appIfTwo(nodes, sBandWidthW, sRemainingDTTW, remainingDTTWD);
+                if(dataTransferTimeW < deadline) {
+                    std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi for the time: " << dataTransferTimeW << "s" << std::endl;
+                    sDataTransferTimeW = std::to_string(dataTransferTimeW);
+                    //appIfOne(nodes, sBandWidthW, sDataTransferTimeW, dataTransferTimeW);
+                    ordered_queue.pop();
+                } else {
+                    std::cout << "Sending the maximum data " << finalData << " to node using Wi-Fi for the time: " << deadline << "s" << std::endl;
+                    //sDeadline = std::to_string(deadline);
+                    //appIfOne(nodes, sBandWidthW, sDeadline, deadline);
+                    ordered_queue.pop();
+                }
+                if(remainingData == 0){
+                    std::cout << "No need to use another WCT" << std::endl;
+                } else {
+                    std::cout << "Sending the remaining data " << remainingData << " to node using Wi-Fi Direct" << remainingDTTWD << "s" << std::endl;
+                    sRemainingDTTW = std::to_string(remainingDTTWD);
+                    //appIfTwo(nodes, sBandWidthW, sRemainingDTTW, remainingDTTWD);
+                    ordered_queue.pop();
+                }
             }
         }
     }
-}
     return 0;
 }
