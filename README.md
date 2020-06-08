@@ -1,4 +1,6 @@
-# Thesis
+# Master's Degree Thesis
+This project aims at providing a Markov chain based link lifetime prediction mechanism and resource allocation scheme for Heterogeneous Mobile Ad hoc cloud.
+
 The simulation scenario, communication manager, resource manager, middleware interface, network monitoring manager and resource allocation scheme are implemented in the manet-routing-compare.cc file.
 The discovery service is implemented in the discoveryApplication.cc file inside the link lifetime folder.
 The Markov chain based mobility and link lifetime prediction mechanism is implemented in the markovchain-mobility-model.cc inside the link lifetime folder.
