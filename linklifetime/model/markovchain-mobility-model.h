@@ -2,7 +2,7 @@
  * markovchain-mobility-model.h
  *
  *  Created on: Apr 17, 2020
- *      Author: ns3
+ *      Author: hassam
  */
 #ifndef SRC_MOBILITY_MODEL_MARKOVCHAIN_MOBILITY_MODEL_H_
 #define SRC_MOBILITY_MODEL_MARKOVCHAIN_MOBILITY_MODEL_H_
