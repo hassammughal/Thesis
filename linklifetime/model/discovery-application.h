@@ -2,7 +2,7 @@
  * discovery-application.h
  *
  *  Created on: May 17, 2020
- *      Author: Jay
+ *      Author: Hassam
  */
 
 
